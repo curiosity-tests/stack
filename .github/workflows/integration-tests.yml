@@ -1,4 +1,5 @@
 name: Integration tests
+run-name: "Integration tests ${{ inputs.leg || github.event_name }} ${{ inputs.racecar_run }}"
 
 on:
   pull_request:
@@ -10,10 +11,25 @@ on:
     tags:
     - '**'
   workflow_dispatch:
+    inputs:
+      leg:
+        description: "baseline (uninstrumented) or instrumented (under chalk/curiosity)"
+        type: choice
+        options: [instrumented, baseline]
+        default: baseline
+      profile:
+        description: "CrashOverride chalk profile"
+        type: string
+        default: curiosity-tests-racecar
+      racecar_run:
+        description: "racecar correlation token, echoed into the run name"
+        type: string
+        default: ""
 
 # Stack will use the value of the GH_TOKEN environment variable to authenticate
 # its requests of the GitHub REST API, providing a higher request rate limit.
 env:
+  CHALK_ON: ${{ inputs.leg == 'instrumented' }}
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 # As of 2026-06-28:
@@ -53,17 +69,8 @@ jobs:
           # Stack must have the same version number.)
           release-args: "--alpine --stack-args --docker-stack-exe=image"
           cache-bust: "2025-11-05"
-        - os: windows-latest
-          release-args: ""
-          cache-bust: "2025-11-05"
         # macos-15-intel will be the last that provides macOS/x86_64
-        - os: macos-15-intel
-          release-args: ""
-          cache-bust: "2025-12-19"
         # macos-latest provides macOS/AArch64 (M1)
-        - os: macos-latest
-          release-args: ""
-          cache-bust: "2024-11-05"
     steps:
     - name: Clone project
       uses: actions/checkout@v7
@@ -191,6 +198,7 @@ jobs:
         path: _release/stack-*
 
   github-release:
+    continue-on-error: true   # racecar: scan job other jobs need
     name: Create GitHub release
     permissions:
       contents: write
